@@ -1,54 +1,60 @@
 const express = require("express");
-    const cors = require("cors");
+const cors = require("cors");
+const app = express();
+const PORT = process.env.PORT || 3000;
 
-    const app = express();
-    const PORT = process.env.PORT || 3000;
+// Bancos de dados temporários em memória
+let keysGeradas = ["CHAVE-TESTE"]; 
+let usuariosCadastrados = [{ usuario: "admin", senha: "123" }];
+let bots = [];
 
-    const VALID_KEYS = process.env.VALID_KEYS
-    ? process.env.VALID_KEYS.split(",")
-    : ["minha-chave-secreta"];
+app.use(cors());
+app.use(express.json());
 
-    let bots = [];
+// ─── 1. ROTA PARA O BOT DO DISCORD (POST /gerarkey) ──────────────────────────
+app.post("/gerarkey", (req, res) => {
+  const { key } = req.body;
+  if (!key) return res.status(400).json({ success: false, message: "A chave é obrigatória." });
+  
+  if (!keysGeradas.includes(key)) keysGeradas.push(key);
+  return res.status(200).json({ success: true, message: "Chave registrada com sucesso!" });
+});
 
-    app.use(cors());
-    app.use(express.json());
+// ─── 2. LOGIN POR KEY (POST /login-key) ──────────────────────────────────────
+// No Sketchware, use o link com /login-key se o app for entrar por chave
+app.post("/login-key", (req, res) => {
+  const { key } = req.body;
+  if (!key) return res.status(400).json({ success: false, message: "Campo 'key' é obrigatório." });
 
-    app.post("/login", (req, res) => {
-    const { key } = req.body;
-    if (!key) {
-      return res.status(400).json({ success: false, message: "Campo 'key' é obrigatório." });
-    }
-    if (!VALID_KEYS.includes(key)) {
-      return res.status(401).json({ success: false, message: "Chave inválida." });
-    }
-    return res.status(200).json({ success: true, message: "Login realizado com sucesso." });
-    });
+  if (keysGeradas.includes(key)) {
+    return res.status(200).json({ success: true, message: "Login por Key realizado!" });
+  } else {
+    return res.status(401).json({ success: false, message: "Key inválida ou expirada." });
+  }
+});
 
-    app.post("/bots", (req, res) => {
-    const { nome, token, linguagem, codigo } = req.body;
-    if (!nome || !token || !linguagem || !codigo) {
-      return res.status(400).json({
-        success: false,
-        message: "Campos obrigatórios: nome, token, linguagem, codigo.",
-      });
-    }
-    const novoBot = {
-      id: Date.now().toString(),
-      nome,
-      token,
-      linguagem,
-      codigo,
-      criadoEm: new Date().toISOString(),
-    };
-    bots.push(novoBot);
-    return res.status(201).json({ success: true, message: "Bot salvo com sucesso.", bot: novoBot });
-    });
+// ─── 3. LOGIN POR USUÁRIO E SENHA (POST /login-usuario) ──────────────────────
+// No Sketchware, use o link com /login-usuario se o app for entrar por dados comuns
+app.post("/login-usuario", (req, res) => {
+  const { usuario, senha } = req.body;
+  if (!usuario || !senha) return res.status(400).json({ success: false, message: "Campos obrigatórios." });
 
-    app.get("/bots", (req, res) => {
-    return res.status(200).json({ success: true, total: bots.length, bots });
-    });
+  const contaEncontrada = usuariosCadastrados.find((u) => u.usuario === usuario && u.senha === senha);
+  if (!contaEncontrada) return res.status(401).json({ success: false, message: "Usuário ou senha incorretos." });
 
-    app.listen(PORT, () => {
+  return res.status(200).json({ success: true, message: "Login por usuário realizado!" });
+});
+
+// ─── 4. ROTA PARA SALVAR OS BOTS (POST /bots) ───────────────────────────────
+app.post("/bots", (req, res) => {
+  const { nome, token, linguagem, codigo } = req.body;
+  if (!nome || !token || !linguagem || !codigo) return res.status(400).json({ success: false, message: "Campos obrigatórios faltando." });
+  
+  const novoBot = { id: Date.now().toString(), nome, token, linguagem, codigo };
+  bots.push(novoBot);
+  return res.status(201).json({ success: true, message: "Bot salvo com sucesso.", bot: novoBot });
+});
+
+app.listen(PORT, () => {
     console.log(`Servidor rodando na porta ${PORT}`);
-    });
-    
+});
